@@ -33,7 +33,9 @@ async def generate(request: Request):
         if not HF_TOKEN:
             return JSONResponse(status_code=500, content={"error": "HF_TOKEN missing in Render Env. Add HF_TOKEN env var."})
 
-        API_URL = f"https://api-inference.huggingface.co/models/{MODEL_ID}"
+        
+# becomes
+        API_URL = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
         headers = {"Authorization": f"Bearer {HF_TOKEN}"}
 
         resp = requests.post(API_URL, headers=headers, json={"inputs": prompt}, timeout=90)
