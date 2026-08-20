@@ -1,0 +1,12 @@
+
+services:
+  - type: web
+    name: tri-d-v39-central
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: MODEL_ID
+        value: black-forest-labs/FLUX.1-schnell
+      - key: HF_TOKEN
+        sync: false
