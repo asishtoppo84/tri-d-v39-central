@@ -1,51 +1,45 @@
-import os, base64, requests
+import os, base64, requests, urllib.parse
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 app = FastAPI(title="TRI-D V39 Central")
 
-HF_TOKEN = os.getenv("HF_TOKEN")
-MODEL_ID = "stabilityai/stable-diffusion-2-1"
-API_URL = f"https://api-inference.huggingface.co/models/{MODEL_ID}"
-
 class PromptRequest(BaseModel):
     prompt: str = "a beautiful Indian girl, cyberpunk city, neon lights, ultra detailed"
 
 @app.get("/", response_class=HTMLResponse)
 def root():
-    return f"""
-    <h2>TRI-D V39 Central LIVE 🔥 FINAL</h2>
-    <p>Model: {MODEL_ID}</p>
-    <p>Endpoint: api-inference.huggingface.co (WORKING)</p>
-    <p>HF_TOKEN: {bool(HF_TOKEN)}</p>
-    <p><a href="/docs">Go to /docs</a></p>
+    return """
+    <h2>TRI-D V39 Central LIVE 🔥 FINAL FIX</h2>
+    <p>Model: FLUX via Pollinations (No HF DNS issue)</p>
+    <p>Status: WORKING 24/7 Free</p>
+    <p><a href="/docs">/docs to Generate</a></p>
+    <p><a href="/generate?prompt=beautiful%20indian%20girl%20cyberpunk">Quick test</a></p>
     """
 
 @app.get("/status")
 def status():
-    return {"status": "LIVE", "model": MODEL_ID, "hf_token_set": bool(HF_TOKEN)}
+    return {"status": "LIVE", "engine": "Pollinations FLUX", "free": True}
+
+@app.get("/generate")
+def generate_get(prompt: str = "beautiful Indian girl, cyberpunk city"):
+    return generate(PromptRequest(prompt=prompt))
 
 @app.post("/generate")
 def generate(req: PromptRequest):
-    if not HF_TOKEN:
-        return {"error": "HF_TOKEN missing"}
-
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     try:
-        # HF Inference wants {"inputs": "..."}
-        resp = requests.post(API_URL, headers=headers, json={"inputs": req.prompt}, timeout=120)
-
-        if resp.status_code == 200 and "image" in resp.headers.get("content-type",""):
+        # Pollinations - free, no auth
+        encoded = urllib.parse.quote(req.prompt)
+        url = f"https://image.pollinations.ai/prompt/{encoded}?width=1024&height=1024&model=flux&enhance=true&nologo=true"
+        
+        resp = requests.get(url, timeout=60)
+        
+        if resp.status_code == 200 and len(resp.content) > 1000:
             b64 = base64.b64encode(resp.content).decode()
-            return {"image_base64": b64, "prompt": req.prompt}
-
-        # If returns JSON error or waiting
-        try:
-            j = resp.json()
-            return {"error": f"HF API {resp.status_code}", "details": str(j)[:500], "prompt": req.prompt, "note": "Wait 20s and retry if model loading"}
-        except:
-            return {"error": f"HF API {resp.status_code}", "details": resp.text[:500]}
+            return {"image_base64": b64, "prompt": req.prompt, "engine": "flux-pollinations"}
+        else:
+            return {"error": f"Pollinations {resp.status_code}", "details": resp.text[:300]}
 
     except Exception as e:
         return {"error": "Exception", "details": str(e)}
