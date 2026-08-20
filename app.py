@@ -21,12 +21,15 @@ def health():
 def config():
     return {"model": MODEL_ID, "hf_token_set": bool(HF_TOKEN)}
 
+from pydantic import BaseModel
+
+class PromptRequest(BaseModel):
+    prompt: str = "a beautiful Indian girl, cyberpunk city, neon lights"
+
 @app.post("/generate")
-async def generate(request: Request):
+def generate(req: PromptRequest):
+    prompt = req.prompt
     try:
-        try:
-            body = await request.json()
-            prompt = body.get("prompt", "a beautiful landscape") if isinstance(body, dict) else "a beautiful landscape"
         except:
             prompt = "a beautiful landscape"
 
