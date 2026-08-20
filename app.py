@@ -1,57 +1,65 @@
-import os, base64, requests
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
+import os
+import base64
+import requests
+from fastapi import FastAPI
+from pydantic import BaseModel
 
 app = FastAPI(title="TRI-D V39 Central")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-MODEL_ID = "black-forest-labs/FLUX.1-schnell"
-HF_TOKEN = os.getenv("HF_TOKEN", "")
-
-@app.get("/")
-def root():
-    return {"status": "TRI-D V39 Central LIVE", "owner": "asishtoppo84", "model": MODEL_ID, "mode": "free-24-7", "hf_token_set": bool(HF_TOKEN)}
-
-@app.get("/health")
-def health():
-    return {"status": "ok", "hf_token_set": bool(HF_TOKEN)}
-
-@app.get("/config")
-def config():
-    return {"model": MODEL_ID, "hf_token_set": bool(HF_TOKEN)}
-
-from pydantic import BaseModel
+HF_TOKEN = os.getenv("HF_TOKEN")
+MODEL_ID = "stabilityai/stable-diffusion-xl-base-1.0"
+API_URL = f"https://router.huggingface.co/hf-inference/models/{MODEL_ID}"
 
 class PromptRequest(BaseModel):
     prompt: str = "a beautiful Indian girl, cyberpunk city, neon lights"
 
+@app.get("/")
+def root():
+    return {
+        "status": "TRI-D V39 Central LIVE",
+        "owner": "asishtoppo84",
+        "model": MODEL_ID,
+        "mode": "free-24-7",
+        "hf_token_set": bool(HF_TOKEN)
+    }
+
 @app.post("/generate")
 def generate(req: PromptRequest):
     prompt = req.prompt
+    if not HF_TOKEN:
+        return {"error": "HF_TOKEN not set in Render env"}
+
+    headers = {
+        "Authorization": f"Bearer {HF_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    
     try:
-        except:
-            prompt = "a beautiful landscape"
-
-        if not HF_TOKEN:
-            return JSONResponse(status_code=500, content={"error": "HF_TOKEN missing in Render Env. Add HF_TOKEN env var."})
-
+        # Call HF
+        resp = requests.post(
+            API_URL,
+            headers=headers,
+            json={"inputs": prompt},
+            timeout=120
+        )
         
-# becomes
-        API_URL = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
-        headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-
-        resp = requests.post(API_URL, headers=headers, json={"inputs": prompt}, timeout=90)
-
-        if resp.status_code!= 200:
-            return JSONResponse(status_code=resp.status_code, content={"error": f"HF API {resp.status_code}", "details": resp.text[:500], "prompt": prompt})
-
-        content_type = resp.headers.get("content-type", "")
-        if "image" in content_type:
-            b64 = base64.b64encode(resp.content).decode()
-            return {"status": "success", "owner": "asishtoppo84", "model": MODEL_ID, "prompt": prompt, "image_base64": f"data:image/jpeg;base64,{b64}"}
-        else:
-            return {"status": "hf_returned_json", "hf_response": resp.text[:1000], "prompt": prompt}
+        # If HF returns image directly
+        if resp.status_code == 200 and "image" in resp.headers.get("content-type", ""):
+            img_b64 = base64.b64encode(resp.content).decode()
+            return {"image_base64": img_b64, "prompt": prompt}
+        
+        # If HF returns JSON with error
+        data = resp.json() if resp.content else {}
+        
+        if resp.status_code != 200:
+            return {
+                "error": f"HF API {resp.status_code}",
+                "details": str(data),
+                "prompt": prompt
+            }
+        
+        # Sometimes returns base64 inside JSON
+        return {"result": data, "prompt": prompt, "image_base64": str(data)[:100]}
 
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": "Internal Server Error", "details": str(e)})
+        return {"error": "Exception", "details": str(e), "prompt": prompt}
